@@ -21,7 +21,6 @@
 from pyalgotrade.utils import dt
 from pyalgotrade.utils import csvutils
 from pyalgotrade.barfeed import membf
-from pyalgotrade import dataseries
 from pyalgotrade import bar
 
 import datetime
@@ -66,13 +65,13 @@ class USEquitiesRTH(DateRangeFilter):
     timezone = pytz.timezone("US/Eastern")
 
     def __init__(self, fromDate=None, toDate=None):
-        DateRangeFilter.__init__(self, fromDate, toDate)
+        super(USEquitiesRTH, self).__init__(fromDate, toDate)
 
         self.__fromTime = datetime.time(9, 30, 0)
         self.__toTime = datetime.time(16, 0, 0)
 
     def includeBar(self, bar_):
-        ret = DateRangeFilter.includeBar(self, bar_)
+        ret = super(USEquitiesRTH, self).includeBar(bar_)
         if ret:
             # Check day of week
             barDay = bar_.getDateTime().weekday()
@@ -95,8 +94,9 @@ class BarFeed(membf.BarFeed):
         This is a base class and should not be used directly.
     """
 
-    def __init__(self, frequency, maxLen=dataseries.DEFAULT_MAX_LEN):
-        membf.BarFeed.__init__(self, frequency, maxLen)
+    def __init__(self, frequency, maxLen=None):
+        super(BarFeed, self).__init__(frequency, maxLen)
+
         self.__barFilter = None
         self.__dailyTime = datetime.time(0, 0, 0)
 
@@ -139,6 +139,7 @@ class GenericRowParser(RowParser):
         self.__closeColName = columnNames["close"]
         self.__volumeColName = columnNames["volume"]
         self.__adjCloseColName = columnNames["adj_close"]
+        self.__columnNames = columnNames
 
     def _parseDate(self, dateString):
         ret = datetime.datetime.strptime(dateString, self.__dateTimeFormat)
@@ -173,7 +174,16 @@ class GenericRowParser(RowParser):
             if len(adjCloseValue) > 0:
                 adjClose = float(adjCloseValue)
                 self.__haveAdjClose = True
-        return bar.BasicBar(dateTime, open_, high, low, close, volume, adjClose, self.__frequency)
+
+        # Process extra columns.
+        extra = {}
+        for k, v in csvRowDict.iteritems():
+            if k not in self.__columnNames:
+                extra[k] = csvutils.float_or_string(v)
+
+        return bar.BasicBar(
+            dateTime, open_, high, low, close, volume, adjClose, self.__frequency, extra=extra
+        )
 
 
 class GenericBarFeed(BarFeed):
@@ -187,7 +197,8 @@ class GenericBarFeed(BarFeed):
     :param timezone: The default timezone to use to localize bars. Check :mod:`pyalgotrade.marketsession`.
     :type timezone: A pytz timezone.
     :param maxLen: The maximum number of values that the :class:`pyalgotrade.dataseries.bards.BarDataSeries` will hold.
-        Once a bounded length is full, when new items are added, a corresponding number of items are discarded from the opposite end.
+        Once a bounded length is full, when new items are added, a corresponding number of items are discarded from the
+        opposite end. If None then dataseries.DEFAULT_MAX_LEN is used.
     :type maxLen: int.
 
     .. note::
@@ -199,8 +210,9 @@ class GenericBarFeed(BarFeed):
          * If any of the instruments loaded are in different timezones, then the timezone parameter should be set.
     """
 
-    def __init__(self, frequency, timezone=None, maxLen=dataseries.DEFAULT_MAX_LEN):
-        BarFeed.__init__(self, frequency, maxLen)
+    def __init__(self, frequency, timezone=None, maxLen=None):
+        super(GenericBarFeed, self).__init__(frequency, maxLen)
+
         self.__timezone = timezone
         # Assume bars don't have adjusted close. This will be set to True after
         # loading the first file if the adj_close column is there.
@@ -249,7 +261,8 @@ class GenericBarFeed(BarFeed):
             timezone = self.__timezone
 
         rowParser = GenericRowParser(self.__columnNames, self.__dateTimeFormat, self.getDailyBarTime(), self.getFrequency(), timezone)
-        BarFeed.addBarsFromCSV(self, instrument, path, rowParser)
+
+        super(GenericBarFeed, self).addBarsFromCSV(instrument, path, rowParser)
 
         if rowParser.barsHaveAdjClose():
             self.__haveAdjClose = True

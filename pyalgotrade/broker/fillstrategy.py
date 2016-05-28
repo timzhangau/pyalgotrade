@@ -195,6 +195,7 @@ class DefaultStrategy(FillStrategy):
     Default fill strategy.
 
     :param volumeLimit: The proportion of the volume that orders can take up in a bar. Must be > 0 and <= 1.
+        If None, then volume limit is not checked.
     :type volumeLimit: float
 
     This strategy works as follows:
@@ -228,6 +229,7 @@ class DefaultStrategy(FillStrategy):
     """
 
     def __init__(self, volumeLimit=0.25):
+        super(DefaultStrategy, self).__init__()
         self.__volumeLeft = {}
         self.__volumeUsed = {}
         self.setVolumeLimit(volumeLimit)
@@ -277,6 +279,7 @@ class DefaultStrategy(FillStrategy):
         Set the volume limit.
 
         :param volumeLimit: The proportion of the volume that orders can take up in a bar. Must be > 0 and <= 1.
+            If None, then volume limit is not checked.
         :type volumeLimit: float
         """
 
