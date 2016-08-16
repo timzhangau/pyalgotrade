@@ -21,6 +21,7 @@
 import collections
 
 import broker
+from pyalgotrade import warninghelpers
 
 import matplotlib.pyplot as plt
 from matplotlib import ticker
@@ -52,6 +53,13 @@ def _filter_datetimes(dateTimes, fromDate=None, toDate=None):
     return filter(lambda x: dateTimeFilter.includeDateTime(x), dateTimes)
 
 
+def _post_plot_fun(subPlot, mplSubplot):
+    # Legend
+    mplSubplot.legend(subPlot.getAllSeries().keys(), shadow=True, loc="best")
+    # Don't scale the Y axis
+    mplSubplot.yaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
+
+
 class Series(object):
     def __init__(self):
         self.__values = {}
@@ -66,7 +74,7 @@ class Series(object):
         return self.__values.get(dateTime, None)
 
     def getValues(self):
-        self.__values
+        return self.__values
 
     def getMarker(self):
         raise NotImplementedError()
@@ -214,6 +222,9 @@ class Subplot(object):
     def isEmpty(self):
         return len(self.__series) == 0
 
+    def getAllSeries(self):
+        return self.__series
+
     def addDataSeries(self, label, dataSeries, defaultClass=LineMarker):
         """Add a DataSeries to the subplot.
 
@@ -260,20 +271,14 @@ class Subplot(object):
     def getCustomMarksSeries(self, name):
         return self.getSeries(name, CustomMarker)
 
-    def customizeSubplot(self, mplSubplot):
-        # Don't scale the Y axis
-        mplSubplot.yaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
-
-    def plot(self, mplSubplot, dateTimes):
+    def plot(self, mplSubplot, dateTimes, postPlotFun=_post_plot_fun):
         for series in self.__series.values():
             color = None
             if series.needColor():
                 color = self.__getColor(series)
             series.plot(mplSubplot, dateTimes, color)
 
-        # Legend
-        mplSubplot.legend(self.__series.keys(), shadow=True, loc="best")
-        self.customizeSubplot(mplSubplot)
+        postPlotFun(self, mplSubplot)
 
 
 class InstrumentSubplot(Subplot):
@@ -396,7 +401,7 @@ class StrategyPlotter(object):
         """
         return self.__portfolioSubplot
 
-    def __buildFigureImpl(self, fromDateTime=None, toDateTime=None):
+    def __buildFigureImpl(self, fromDateTime=None, toDateTime=None, postPlotFun=_post_plot_fun):
         dateTimes = _filter_datetimes(self.__dateTimes, fromDateTime, toDateTime)
         dateTimes.sort()
 
@@ -413,25 +418,32 @@ class StrategyPlotter(object):
             axesSubplot = axes[i][0]
             if not subplot.isEmpty():
                 mplSubplots.append(axesSubplot)
-                subplot.plot(axesSubplot, dateTimes)
+                subplot.plot(axesSubplot, dateTimes, postPlotFun=postPlotFun)
                 axesSubplot.grid(True)
 
         return (fig, mplSubplots)
 
     def buildFigure(self, fromDateTime=None, toDateTime=None):
+        # Deprecated in v0.18.
+        warninghelpers.deprecation_warning("buildFigure will be deprecated in the next version. Use buildFigureAndSubplots.", stacklevel=2)
+
+        fig, _ = self.buildFigureAndSubplots(fromDateTime, toDateTime)
+        return fig
+
+    def buildFigureAndSubplots(self, fromDateTime=None, toDateTime=None, postPlotFun=_post_plot_fun):
         """Builds a matplotlib.figure.Figure with the subplots. Must be called after running the strategy.
 
         :param fromDateTime: An optional starting datetime.datetime. Everything before it won't get plotted.
         :type fromDateTime: datetime.datetime
         :param toDateTime: An optional ending datetime.datetime. Everything after it won't get plotted.
         :type toDateTime: datetime.datetime
-        :rtype: matplotlib.figure.Figure.
+        :rtype: A 2 element tuple with matplotlib.figure.Figure and subplots.
         """
-        fig, mplSubplots = self.__buildFigureImpl(fromDateTime, toDateTime)
+        fig, mplSubplots = self.__buildFigureImpl(fromDateTime, toDateTime, postPlotFun=postPlotFun)
         fig.autofmt_xdate()
-        return fig
+        return fig, mplSubplots
 
-    def plot(self, fromDateTime=None, toDateTime=None):
+    def plot(self, fromDateTime=None, toDateTime=None, postPlotFun=_post_plot_fun):
         """Plots the strategy execution. Must be called after running the strategy.
 
         :param fromDateTime: An optional starting datetime.datetime. Everything before it won't get plotted.
@@ -440,6 +452,6 @@ class StrategyPlotter(object):
         :type toDateTime: datetime.datetime
         """
 
-        fig, mplSubplots = self.__buildFigureImpl(fromDateTime, toDateTime)
+        fig, mplSubplots = self.__buildFigureImpl(fromDateTime, toDateTime, postPlotFun=postPlotFun)
         fig.autofmt_xdate()
         plt.show()

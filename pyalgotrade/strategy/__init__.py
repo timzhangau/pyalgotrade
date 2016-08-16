@@ -26,7 +26,6 @@ from pyalgotrade.broker import backtesting
 from pyalgotrade import observer
 from pyalgotrade import dispatcher
 import pyalgotrade.strategy.position
-from pyalgotrade import warninghelpers
 from pyalgotrade import logger
 from pyalgotrade.barfeed import resampled
 
@@ -485,8 +484,10 @@ class BaseStrategy(object):
 
     def __onOrderEvent(self, broker_, orderEvent):
         order = orderEvent.getOrder()
-        pos = self.__orderToPosition.get(order.getId(), None)
         self.onOrderUpdated(order)
+
+        # Notify the position about the order event.
+        pos = self.__orderToPosition.get(order.getId(), None)
         if pos is not None:
             # Unlink the order from the position if its not active anymore.
             if not order.isActive():

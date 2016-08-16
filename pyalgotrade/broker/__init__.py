@@ -21,7 +21,6 @@
 import abc
 
 from pyalgotrade import observer
-from pyalgotrade import warninghelpers
 from pyalgotrade import dispatchprio
 
 
@@ -127,6 +126,7 @@ class Order(object):
         LIMIT = 2
         STOP = 3
         STOP_LIMIT = 4
+        NEXT_CUSTOM_TYPE = 1000
 
     # Valid state transitions.
     VALID_TRANSITIONS = {
@@ -137,8 +137,9 @@ class Order(object):
     }
 
     def __init__(self, type_, action, instrument, quantity, instrumentTraits):
-        if quantity <= 0:
+        if quantity is not None and quantity <= 0:
             raise Exception("Invalid quantity")
+
         self.__id = None
         self.__type = type_
         self.__action = action
@@ -165,6 +166,11 @@ class Order(object):
 #        if other is None:
 #            return True
 #        assert(False)
+
+    def _setQuantity(self, quantity):
+        assert self.__quantity is None, "Can only change the quantity if it was undefined"
+        assert quantity > 0, "Invalid quantity"
+        self.__quantity = quantity
 
     def getInstrumentTraits(self):
         return self.__instrumentTraits
@@ -454,10 +460,11 @@ class OrderExecutionInfo(object):
 
 class OrderEvent(object):
     class Type:
-        ACCEPTED = 1  # Order has been acknowledged by the broker.
-        CANCELED = 2  # Order has been canceled.
-        PARTIALLY_FILLED = 3  # Order has been partially filled.
-        FILLED = 4  # Order has been completely filled.
+        SUBMITTED = 1  # Order has been submitted.
+        ACCEPTED = 2  # Order has been acknowledged by the broker.
+        CANCELED = 3  # Order has been canceled.
+        PARTIALLY_FILLED = 4  # Order has been partially filled.
+        FILLED = 5  # Order has been completely filled.
 
     def __init__(self, order, eventyType, eventInfo):
         self.__order = order
